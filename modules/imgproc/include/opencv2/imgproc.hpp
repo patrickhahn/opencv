@@ -3283,6 +3283,10 @@ CV_EXPORTS_W void grabCut( InputArray img, InputOutputArray mask, Rect rect,
                            InputOutputArray bgdModel, InputOutputArray fgdModel,
                            int iterCount, int mode = GC_EVAL );
 
+CV_EXPORTS_W void grabCutRGBD( InputArray img, InputOutputArray mask, Rect rect,
+                            InputOutputArray bgdModel, InputOutputArray fgdModel,
+                            int iterCount, int mode = GC_EVAL );
+
 /** @example distrans.cpp
 An example on using the distance transform\
 */

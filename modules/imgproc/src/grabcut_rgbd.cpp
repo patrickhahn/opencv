@@ -52,14 +52,14 @@ Carsten Rother, Vladimir Kolmogorov, Andrew Blake.
  */
 
 /*
- GMM - Gaussian Mixture Model
+ GMM4 - Gaussian Mixture Model
 */
-class GMM
+class GMM4
 {
 public:
     static const int componentsCount = 5;
 
-    GMM( Mat& _model );
+    GMM4( Mat& _model );
     double operator()( const Vec4d color ) const;
     double operator()( int ci, const Vec4d color ) const;
     int whichComponent( const Vec4d color ) const;
@@ -84,7 +84,7 @@ private:
     int totalSampleCount;
 };
 
-GMM::GMM( Mat& _model )
+GMM4::GMM4( Mat& _model )
 {
     const int modelSize = 4/*mean*/ + 16/*covariance*/ + 1/*component weight*/;
     if( _model.empty() )
@@ -106,7 +106,7 @@ GMM::GMM( Mat& _model )
              calcInverseCovAndDeterm( ci );
 }
 
-double GMM::operator()( const Vec4d color ) const
+double GMM4::operator()( const Vec4d color ) const
 {
     double res = 0;
     for( int ci = 0; ci < componentsCount; ci++ )
@@ -114,7 +114,7 @@ double GMM::operator()( const Vec4d color ) const
     return res;
 }
 
-double GMM::operator()( int ci, const Vec4d color ) const
+double GMM4::operator()( int ci, const Vec4d color ) const
 {
     double res = 0;
     if( coefs[ci] > 0 )
@@ -132,7 +132,7 @@ double GMM::operator()( int ci, const Vec4d color ) const
     return res;
 }
 
-int GMM::whichComponent( const Vec4d color ) const
+int GMM4::whichComponent( const Vec4d color ) const
 {
     int k = 0;
     double max = 0;
@@ -149,7 +149,7 @@ int GMM::whichComponent( const Vec4d color ) const
     return k;
 }
 
-void GMM::initLearning()
+void GMM4::initLearning()
 {
     for( int ci = 0; ci < componentsCount; ci++)
     {
@@ -163,7 +163,7 @@ void GMM::initLearning()
     totalSampleCount = 0;
 }
 
-void GMM::addSample( int ci, const Vec4d color )
+void GMM4::addSample( int ci, const Vec4d color )
 {
     sums[ci][0] += color[0]; sums[ci][1] += color[1]; sums[ci][2] += color[2]; sums[ci][3] += color[3];
     prods[ci][0][0] += color[0]*color[0]; prods[ci][0][1] += color[0]*color[1];
@@ -178,7 +178,7 @@ void GMM::addSample( int ci, const Vec4d color )
     totalSampleCount++;
 }
 
-void GMM::endLearning()
+void GMM4::endLearning()
 {
     const double variance = 0.01;
     for( int ci = 0; ci < componentsCount; ci++ )
@@ -221,7 +221,7 @@ void GMM::endLearning()
     }
 }
 
-void GMM::calcInverseCovAndDeterm( int ci )
+void GMM4::calcInverseCovAndDeterm( int ci )
 {
     if( coefs[ci] > 0 )
     {
@@ -386,9 +386,9 @@ static void initMaskWithRect( Mat& mask, Size imgSize, Rect rect )
 }
 
 /*
-  Initialize GMM background and foreground models using kmeans algorithm.
+  Initialize GMM4 background and foreground models using kmeans algorithm.
 */
-static void initGMMs( const Mat& img, const Mat& mask, GMM& bgdGMM, GMM& fgdGMM )
+static void initGMM4s( const Mat& img, const Mat& mask, GMM4& bgdGMM4, GMM4& fgdGMM4 )
 {
     const int kMeansItCount = 10;
     const int kMeansType = KMEANS_PP_CENTERS;
@@ -408,27 +408,27 @@ static void initGMMs( const Mat& img, const Mat& mask, GMM& bgdGMM, GMM& fgdGMM 
     }
     CV_Assert( !bgdSamples.empty() && !fgdSamples.empty() );
     Mat _bgdSamples( (int)bgdSamples.size(), 4, CV_32FC1, &bgdSamples[0][0] );
-    kmeans( _bgdSamples, GMM::componentsCount, bgdLabels,
+    kmeans( _bgdSamples, GMM4::componentsCount, bgdLabels,
             TermCriteria( CV_TERMCRIT_ITER, kMeansItCount, 0.0), 0, kMeansType );
     Mat _fgdSamples( (int)fgdSamples.size(), 4, CV_32FC1, &fgdSamples[0][0] );
-    kmeans( _fgdSamples, GMM::componentsCount, fgdLabels,
+    kmeans( _fgdSamples, GMM4::componentsCount, fgdLabels,
             TermCriteria( CV_TERMCRIT_ITER, kMeansItCount, 0.0), 0, kMeansType );
 
-    bgdGMM.initLearning();
+    bgdGMM4.initLearning();
     for( int i = 0; i < (int)bgdSamples.size(); i++ )
-        bgdGMM.addSample( bgdLabels.at<int>(i,0), bgdSamples[i] );
-    bgdGMM.endLearning();
+        bgdGMM4.addSample( bgdLabels.at<int>(i,0), bgdSamples[i] );
+    bgdGMM4.endLearning();
 
-    fgdGMM.initLearning();
+    fgdGMM4.initLearning();
     for( int i = 0; i < (int)fgdSamples.size(); i++ )
-        fgdGMM.addSample( fgdLabels.at<int>(i,0), fgdSamples[i] );
-    fgdGMM.endLearning();
+        fgdGMM4.addSample( fgdLabels.at<int>(i,0), fgdSamples[i] );
+    fgdGMM4.endLearning();
 }
 
 /*
-  Assign GMMs components for each pixel.
+  Assign GMM4s components for each pixel.
 */
-static void assignGMMsComponents( const Mat& img, const Mat& mask, const GMM& bgdGMM, const GMM& fgdGMM, Mat& compIdxs )
+static void assignGMM4sComponents( const Mat& img, const Mat& mask, const GMM4& bgdGMM4, const GMM4& fgdGMM4, Mat& compIdxs )
 {
     Point p;
     for( p.y = 0; p.y < img.rows; p.y++ )
@@ -437,20 +437,20 @@ static void assignGMMsComponents( const Mat& img, const Mat& mask, const GMM& bg
         {
             Vec4d color = img.at<Vec4b>(p);
             compIdxs.at<int>(p) = mask.at<uchar>(p) == GC_BGD || mask.at<uchar>(p) == GC_PR_BGD ?
-                bgdGMM.whichComponent(color) : fgdGMM.whichComponent(color);
+                bgdGMM4.whichComponent(color) : fgdGMM4.whichComponent(color);
         }
     }
 }
 
 /*
-  Learn GMMs parameters.
+  Learn GMM4s parameters.
 */
-static void learnGMMs( const Mat& img, const Mat& mask, const Mat& compIdxs, GMM& bgdGMM, GMM& fgdGMM )
+static void learnGMM4s( const Mat& img, const Mat& mask, const Mat& compIdxs, GMM4& bgdGMM4, GMM4& fgdGMM4 )
 {
-    bgdGMM.initLearning();
-    fgdGMM.initLearning();
+    bgdGMM4.initLearning();
+    fgdGMM4.initLearning();
     Point p;
-    for( int ci = 0; ci < GMM::componentsCount; ci++ )
+    for( int ci = 0; ci < GMM4::componentsCount; ci++ )
     {
         for( p.y = 0; p.y < img.rows; p.y++ )
         {
@@ -459,21 +459,21 @@ static void learnGMMs( const Mat& img, const Mat& mask, const Mat& compIdxs, GMM
                 if( compIdxs.at<int>(p) == ci )
                 {
                     if( mask.at<uchar>(p) == GC_BGD || mask.at<uchar>(p) == GC_PR_BGD )
-                        bgdGMM.addSample( ci, img.at<Vec4b>(p) );
+                        bgdGMM4.addSample( ci, img.at<Vec4b>(p) );
                     else
-                        fgdGMM.addSample( ci, img.at<Vec4b>(p) );
+                        fgdGMM4.addSample( ci, img.at<Vec4b>(p) );
                 }
             }
         }
     }
-    bgdGMM.endLearning();
-    fgdGMM.endLearning();
+    bgdGMM4.endLearning();
+    fgdGMM4.endLearning();
 }
 
 /*
   Construct GCGraph
 */
-static void constructGCGraph( const Mat& img, const Mat& mask, const GMM& bgdGMM, const GMM& fgdGMM, double lambda,
+static void constructGCGraph( const Mat& img, const Mat& mask, const GMM4& bgdGMM4, const GMM4& fgdGMM4, double lambda,
                        const Mat& leftW, const Mat& upleftW, const Mat& upW, const Mat& uprightW,
                        GCGraph<double>& graph )
 {
@@ -493,8 +493,8 @@ static void constructGCGraph( const Mat& img, const Mat& mask, const GMM& bgdGMM
             double fromSource, toSink;
             if( mask.at<uchar>(p) == GC_PR_BGD || mask.at<uchar>(p) == GC_PR_FGD )
             {
-                fromSource = -log( bgdGMM(color) );
-                toSink = -log( fgdGMM(color) );
+                fromSource = -log( bgdGMM4(color) );
+                toSink = -log( fgdGMM4(color) );
             }
             else if( mask.at<uchar>(p) == GC_BGD )
             {
@@ -555,7 +555,7 @@ static void estimateSegmentation( GCGraph<double>& graph, Mat& mask )
     }
 }
 
-void cv::grabCut_rgbd( InputArray _img, InputOutputArray _mask, Rect rect,
+void cv::grabCutRGBD( InputArray _img, InputOutputArray _mask, Rect rect,
                   InputOutputArray _bgdModel, InputOutputArray _fgdModel,
                   int iterCount, int mode )
 {
@@ -569,7 +569,7 @@ void cv::grabCut_rgbd( InputArray _img, InputOutputArray _mask, Rect rect,
     if( img.type() != CV_8UC4 )
         CV_Error( CV_StsBadArg, "image must have CV_8UC4 type" );
 
-    GMM bgdGMM( bgdModel ), fgdGMM( fgdModel );
+    GMM4 bgdGMM4( bgdModel ), fgdGMM4( fgdModel );
     Mat compIdxs( img.size(), CV_32SC1 );
 
     if( mode == GC_INIT_WITH_RECT || mode == GC_INIT_WITH_MASK )
@@ -578,7 +578,7 @@ void cv::grabCut_rgbd( InputArray _img, InputOutputArray _mask, Rect rect,
             initMaskWithRect( mask, img.size(), rect );
         else // flag == GC_INIT_WITH_MASK
             checkMask( img, mask );
-        initGMMs( img, mask, bgdGMM, fgdGMM );
+        initGMM4s( img, mask, bgdGMM4, fgdGMM4 );
     }
 
     if( iterCount <= 0)
@@ -597,9 +597,9 @@ void cv::grabCut_rgbd( InputArray _img, InputOutputArray _mask, Rect rect,
     for( int i = 0; i < iterCount; i++ )
     {
         GCGraph<double> graph;
-        assignGMMsComponents( img, mask, bgdGMM, fgdGMM, compIdxs );
-        learnGMMs( img, mask, compIdxs, bgdGMM, fgdGMM );
-        constructGCGraph(img, mask, bgdGMM, fgdGMM, lambda, leftW, upleftW, upW, uprightW, graph );
+        assignGMM4sComponents( img, mask, bgdGMM4, fgdGMM4, compIdxs );
+        learnGMM4s( img, mask, compIdxs, bgdGMM4, fgdGMM4 );
+        constructGCGraph(img, mask, bgdGMM4, fgdGMM4, lambda, leftW, upleftW, upW, uprightW, graph );
         estimateSegmentation( graph, mask );
     }
 }
